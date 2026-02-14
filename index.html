@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Randy 💗</title>
+  <style>
+    html, body { height: 100%; margin: 0; background:#000; overflow:hidden; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+
+    /* Contenedor 9:16 centrado */
+    .frame {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: #000;
+    }
+    .stage {
+      width: min(100vw, calc(100vh * 9/16));
+      height: min(100vh, calc(100vw * 16/9));
+      position: relative;
+      overflow: hidden;
+      border-radius: 18px;
+      background: #000;
+    }
+    canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .title {
+      position: absolute;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 5;
+      color: #ff7ad9;
+      font-size: clamp(26px, 5vw, 44px);
+      font-weight: 800;
+      text-shadow: 0 0 12px rgba(255,122,217,.85), 0 0 34px rgba(255,122,217,.45);
+      user-select: none;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      white-space: nowrap;
+    }
+    .title .heart { filter: drop-shadow(0 0 14px rgba(255, 80, 140, .9)); }
+
+    /* Opcional: ocultar barra inferior si no quieres */
+    .hint {
+      position: absolute;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 6;
+      color: rgba(255,255,255,.7);
+      font-size: 12px;
+      padding: 8px 10px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,122,217,.18);
+      background: rgba(0,0,0,.28);
+      backdrop-filter: blur(8px);
+      user-select:none;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="frame">
+    <div class="stage">
+      <canvas id="c"></canvas>
+      <div class="title">Randy <span class="heart">❤️</span></div>
+      <div class="hint">Toca la pantalla para corazones ✨</div>
+    </div>
+  </div>
+
+  <script>
+    // ===== Canvas setup (dentro del stage 9:16) =====
+    const stage = document.querySelector('.stage');
+    const canvas = document.getElementById('c');
+    const ctx = canvas.getContext('2d', { alpha: false });
+
+    function resize() {
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const w = stage.clientWidth;
+      const h = stage.clientHeight;
+      canvas.width = Math.floor(w * dpr);
+      canvas.height = Math.floor(h * dpr);
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+    }
+    addEventListener('resize', resize);
+    resize();
+
+    const W = ()=>stage.clientWidth;
+    const H = ()=>stage.clientHeight;
+
+    const rand = (a,b)=>a+Math.random()*(b-a);
+    const pick = (arr)=>arr[Math.floor(Math.random()*arr.length)];
+
+    // ===== Textos =====
+    const phrases = [
+      "Te amo",
+      "Mi desastre fav",
+      "Mi todo",
+      "Mi mundo",
+      "Mi universo"
+    ];
+
+    // ===== Stickers PNG (pon tus archivos aquí) =====
+    const stickerPaths = [
+      "stickers/ositos1.png",
+      "stickers/ositos2.png",
+      "stickers/ositos3.png"
+    ];
+
+    // Carga imágenes
+    const stickerImgs = [];
+    function loadStickers() {
+      return Promise.all(stickerPaths.map(src => new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => { stickerImgs.push(img); resolve(); };
+        img.onerror = () => resolve(); // si falta alguno, no rompe
+        img.src = src;
+      })));
+    }
+
+    // ===== Stars =====
+    const stars = [];
+    function makeStars(n=900) {
+      stars.length = 0;
+      for (let i=0;i<n;i++){
+        stars.push({
+          x: Math.random()*W(),
+          y: Math.random()*H(),
+          z: Math.random(),
+          s: rand(0.4, 1.8),
+          tw: rand(0, Math.PI*2)
+        });
+      }
+    }
+
+    // ===== Floaters (text + stickers) =====
+    const floaters = [];
+    function spawnFloaters(count=26) {
+      floaters.length = 0;
+      for (let i=0;i<count;i++){
+        const isSticker = Math.random() < 0.45; // más stickers
+        floaters.push({
+          kind: isSticker ? "sticker" : "text",
+          text: isSticker ? "" : pick(phrases),
+          img: isSticker ? (stickerImgs.length ? pick(stickerImgs) : null) : null,
+          x: rand(0, W()),
+          y: rand(H()*0.40, H()),
+          vx: rand(-0.16, 0.16),
+          vy: rand(-0.26, -0.06),
+          size: isSticker ? rand(36, 64) : rand(18, 30),
+          rot: rand(-0.05, 0.05),
+          a: rand(0.55, 1),
+          hue: rand(305, 335),
+          glow: rand(10, 22)
+        });
+      }
+    }
+
+    // ===== Portal =====
+    function drawPortal(t) {
+      const cx = W()/2;
+      const cy = H()*0.60;
+
+      // neblina rosa
+      const fog = ctx.createRadialGradient(cx, cy, 10, cx, cy, Math.min(W(), H())*0.75);
+      fog.addColorStop(0, "rgba(255, 80, 160, 0.10)");
+      fog.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = fog;
+      ctx.fillRect(0,0,W(),H());
+
+      const baseR = Math.min(W(), H()) * 0.18;
+      const pulse = Math.sin(t*1.6)*0.06 + 1;
+      const r = baseR * pulse;
+
+      for (let i=0;i<5;i++){
+        ctx.beginPath();
+        ctx.arc(cx, cy, r + i*7, 0, Math.PI*2);
+        ctx.strokeStyle = `rgba(255, 80, 200, ${0.14 - i*0.02})`;
+        ctx.lineWidth = 11 + i*2;
+        ctx.shadowBlur = 26 + i*10;
+        ctx.shadowColor = "rgba(255, 80, 200, 0.95)";
+        ctx.stroke();
+      }
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI*2);
+      ctx.strokeStyle = "rgba(255, 220, 255, 0.92)";
+      ctx.lineWidth = 5;
+      ctx.shadowBlur = 30;
+      ctx.shadowColor = "rgba(255, 120, 220, 1)";
+      ctx.stroke();
+
+      // centro oscuro
+      const core = ctx.createRadialGradient(cx, cy, 1, cx, cy, r*0.88);
+      core.addColorStop(0, "rgba(10,0,20,0.96)");
+      core.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = core;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r*0.88, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    // ===== Loop =====
+    let last = performance.now();
+    function tick(now){
+      const dt = Math.min(32, now-last);
+      last = now;
+      const t = now/1000;
+
+      // fondo
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0,0,W(),H());
+
+      // estrellas
+      for (const s of stars){
+        s.tw += dt*0.0015*(0.4 + s.z);
+        const twinkle = 0.65 + 0.35*Math.sin(s.tw);
+
+        const cx = W()/2, cy = H()*0.60;
+        const dx = s.x - cx, dy = s.y - cy;
+        const pull = 0.00002*(0.2 + s.z);
+        s.x -= dx * pull * dt * 60;
+        s.y -= dy * pull * dt * 60;
+
+        if (s.x < -20) s.x = W()+20;
+        if (s.x > W()+20) s.x = -20;
+        if (s.y < -20) s.y = H()+20;
+        if (s.y > H()+20) s.y = -20;
+
+        ctx.globalAlpha = twinkle * (0.35 + 0.65*s.z);
+        ctx.fillStyle = "white";
+        ctx.fillRect(s.x, s.y, s.s, s.s);
+      }
+      ctx.globalAlpha = 1;
+
+      drawPortal(t);
+
+      // flotadores
+      for (const f of floaters){
+        f.x += f.vx * dt * 60;
+        f.y += f.vy * dt * 60;
+
+        // órbita suave
+        const cx = W()/2, cy = H()*0.60;
+        const ang = Math.atan2(f.y - cy, f.x - cx) + f.rot*0.12;
+        const dist = Math.hypot(f.x - cx, f.y - cy);
+        f.x = cx + Math.cos(ang) * dist;
+        f.y = cy + Math.sin(ang) * dist;
+
+        // respawn
+        if (f.y < -80 || f.x < -240 || f.x > W()+240) {
+          f.x = rand(0, W());
+          f.y = rand(H()*0.55, H()+80);
+          if (f.kind === "text") f.text = pick(phrases);
+          if (f.kind === "sticker") f.img = (stickerImgs.length ? pick(stickerImgs) : null);
+        }
+
+        ctx.save();
+        ctx.globalAlpha = f.a;
+
+        if (f.kind === "text") {
+          ctx.font = `${f.size}px system-ui`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.shadowBlur = f.glow;
+          ctx.shadowColor = "rgba(255, 90, 200, 0.95)";
+          ctx.fillStyle = `hsl(${f.hue} 100% 75%)`;
+          const wob = Math.sin(t*2 + f.x*0.01)*0.8;
+          ctx.fillText(f.text, f.x, f.y + wob);
+        } else {
+          // Sticker PNG
+          const s = f.size;
+          const wob = Math.sin(t*2 + f.x*0.01)*1.1;
+          ctx.shadowBlur = 20;
+          ctx.shadowColor = "rgba(255, 90, 200, 0.55)";
+          if (f.img) {
+            ctx.drawImage(f.img, f.x - s/2, f.y - s/2 + wob, s, s);
+          } else {
+            // fallback si no cargó sticker
+            ctx.font = `${Math.max(24, s*0.55)}px Apple Color Emoji, Segoe UI Emoji`;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText("🧸💞", f.x, f.y + wob);
+          }
+        }
+        ctx.restore();
+      }
+
+      // destellitos
+      for (let i=0;i<34;i++){
+        const cx = W()/2, cy = H()*0.60;
+        const a = rand(0, Math.PI*2);
+        const r = rand(0, Math.min(W(), H())*0.32);
+        ctx.globalAlpha = 0.08;
+        ctx.fillStyle = "white";
+        ctx.fillRect(cx + Math.cos(a)*r, cy + Math.sin(a)*r, 1.2, 1.2);
+      }
+      ctx.globalAlpha = 1;
+
+      requestAnimationFrame(tick);
+    }
+
+    // Toque: burst de corazones
+    stage.addEventListener('pointerdown', (e)=>{
+      const rect = stage.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const burst = ["💗","💞","💕","✨","❤️"];
+      for (let i=0;i<12;i++){
+        floaters.push({
+          kind: "text",
+          text: pick(burst),
+          x: x + rand(-28,28),
+          y: y + rand(-28,28),
+          vx: rand(-0.35, 0.35),
+          vy: rand(-0.55, -0.20),
+          size: rand(18, 28),
+          rot: rand(-0.1, 0.1),
+          a: rand(0.7, 1),
+          hue: rand(305, 335),
+          glow: rand(10, 18)
+        });
+      }
+    });
+
+    // Init
+    (async function init(){
+      await loadStickers();
+      makeStars();
+      spawnFloaters();
+      requestAnimationFrame(tick);
+    })();
+  </script>
+</body>
+</html>
